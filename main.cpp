@@ -18,16 +18,32 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	char keys[256] = { 0 };
 	char preKeys[256] = { 0 };
 
-	MathFunction Func;
-
 	int prevMouseX = 0;
 	int prevMouseY = 0;
 	bool isDragging = false;
 
-	Vector3 rotate = {};
-	Vector3 translate = {};
+	// 動いているかどうかのフラグ
+	bool isActive = false;
+
+	float angularVelocity = 3.14f;
+	float angle = 0.0f;
+	//デルタタイム
+	float deltaTime = 1.0f / 60.0f;
+
+	float r = 0.8f;
+
+	MathFunction mathFunc;
+
+	Vector3 translate{};
+	Vector3 rotate{};
+
 	Vector3 cameraTranslate = { 0.0f, 1.9f, -6.49f };
 	Vector3 cameraRotate = { 0.26f, 0.0f, 0.0f };
+
+	Vector3 c{};
+
+	//球体の情報
+	Sphere p{ { c.x + std::cos(angle) * r, c.y + std::sinf(angle) * r, c.z },{0.08f} };
 
 	// ウィンドウの×ボタンが押されるまでループ
 	while (Novice::ProcessMessage() == 0)
@@ -47,7 +63,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 		/// ↓更新処理ここから
 		///
 
-		  // マウスドラッグによる回転制御
+		// マウスドラッグによる回転制御
 		if (Novice::IsPressMouse(1))
 		{
 			if (!isDragging)
@@ -78,20 +94,38 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 			cameraTranslate.z += wheel * 0.01f; // ホイールの回転方向に応じて前後移動
 		}
 
+		ImGui::Begin("Window");
+		if (ImGui::Button("Start"))
+		{
+			isActive = true; // 動きを開始
+		}
+		if (ImGui::Button("Reset"))
+		{
+			isActive = false; // 動きを停止
+			angle = 0.0f; // 角度をリセット
+		}
+		ImGui::End();
+
 		//各種行列の計算
-		Matrix4x4 worldMatrix = Func.MakeAffineMatrix({ 1.0f,1.0f,1.0f }, rotate, translate);
-		Matrix4x4 cameraMatrix = Func.MakeAffineMatrix({ 1.0f,1.0f,1.0f }, cameraRotate, cameraTranslate);
-		Matrix4x4 viewWorldMatrix = Func.Inverse(worldMatrix);
-		Matrix4x4 viewCameraMatrix = Func.Inverse(cameraMatrix);
-
+		Matrix4x4 worldMatrix = mathFunc.MakeAffineMatrix({ 1.0f,1.0f,1.0f }, rotate, translate);
+		Matrix4x4 cameraMatrix = mathFunc.MakeAffineMatrix({ 1.0f,1.0f,1.0f }, cameraRotate, cameraTranslate);
+		Matrix4x4 viewWorldMatrix = mathFunc.Inverse(worldMatrix);
+		Matrix4x4 viewCameraMatrix = mathFunc.Inverse(cameraMatrix);
 		// 透視投影行列を作成
-		Matrix4x4 projectionMatrix = Func.MakePerspectiveFovMatrix(0.45f, float(kWindowWidth) / float(kWindowHeight), 0.1f, 100.0f);
-
+		Matrix4x4 projectionMatrix = mathFunc.MakePerspectiveFovMatrix(0.45f, float(kWindowWidth) / float(kWindowHeight), 0.1f, 100.0f);
 		//ビュー座標変換行列を作成
-		Matrix4x4 viewProjectionMatrix = Func.Multiply(viewCameraMatrix, projectionMatrix);
-
+		Matrix4x4 viewProjectionMatrix = mathFunc.Multiply(viewWorldMatrix, mathFunc.Multiply(viewCameraMatrix, projectionMatrix));
 		//ViewportMatrixビューポート変換行列を作成
-		Matrix4x4 viewportMatrix = Func.MakeViewportMatrix(0.0f, 0.0f, float(kWindowWidth), float(kWindowHeight), 0.0f, 1.0f);
+		Matrix4x4 viewportMatrix = mathFunc.MakeViewportMatrix(0.0f, 0.0f, float(kWindowWidth), float(kWindowHeight), 0.0f, 1.0f);
+
+		// 円運動の更新
+		if (isActive)
+		{
+			angle += angularVelocity * deltaTime;
+		}
+
+		p = { {c.x + std::cos(angle) * r ,c.y + std::sin(angle) * r,c.z }, {0.08f} };
+
 
 		///
 		/// ↑更新処理ここまで
@@ -102,7 +136,10 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 		///
 
 		// Gridを描画
-		Func.DrawGrid(viewProjectionMatrix, viewportMatrix);
+		mathFunc.DrawGrid(viewProjectionMatrix, viewportMatrix);
+
+		// Sphereを描画 (球体を描画)
+		mathFunc.DrawSphere(p, viewProjectionMatrix, viewportMatrix, WHITE);
 
 		///
 		/// ↑描画処理ここまで
